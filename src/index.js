@@ -74,7 +74,6 @@ async function connectToWhatsApp() {
         const user = users.find(user => user.id === messageObject.key.remoteJid)
         messageObject.body = messageObject.message.conversation
         
-        // Update activity for the user
         updateUserActivity(messageObject.key.remoteJid);
         
         if(user) {
