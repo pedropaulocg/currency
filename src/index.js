@@ -12,16 +12,13 @@ dotenv.config();
 
 let sock
 
-// User activity tracking
 const userActivity = new Map();
 const INACTIVITY_TIMEOUT = 2 * 60 * 1000;
 
-// Function to update user activity
 const updateUserActivity = (userId) => {
   userActivity.set(userId, Date.now());
 };
 
-// Function to remove inactive users
 const removeInactiveUsers = () => {
   const now = Date.now();
   const inactiveUsers = [];
@@ -33,7 +30,6 @@ const removeInactiveUsers = () => {
   });
   
   inactiveUsers.forEach(userId => {
-    // Remove from users array
     const userIndex = users.findIndex(user => user.id === userId);
     if (userIndex !== -1) {
       sock.sendMessage(userId, {text: 'Encerrando conversa por inatividade.'})
@@ -41,7 +37,6 @@ const removeInactiveUsers = () => {
       console.log(`👤 User ${userId} removed due to inactivity (2 minutes)`);
     }
     
-    // Remove from activity tracking
     userActivity.delete(userId);
   });
   
@@ -50,8 +45,7 @@ const removeInactiveUsers = () => {
   }
 };
 
-// Start inactivity checker
-setInterval(removeInactiveUsers, 60 * 1000); // Check every minute
+setInterval(removeInactiveUsers, 60 * 1000);
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -156,11 +150,10 @@ export const sendMessageAtTime = () => {
   }, { timezone: TZ });
 };
 
-// New price monitoring function
 export const monitorPrices = () => {
   console.log('🔄 Price monitoring started - checking every 5 minutes');
 
-  cron.schedule('*/1 * * * *', async () => {
+  cron.schedule('*/5 * * * *', async () => {
     try {
       const watchers = await UserWatcher.find({}).lean();
       if (!watchers.length) return;
@@ -194,7 +187,7 @@ export const monitorPrices = () => {
         if (currentPrice <= watcher.price) {
           const now = Date.now();
           const lastAlert = alertCooldowns.get(watcher.user) || 0;
-          const cooldownMs = 20 * 60 * 1000; // 20 minutes in milliseconds
+          const cooldownMs = 20 * 60 * 1000;
 
           if (now - lastAlert >= cooldownMs) {
             const alertMessage = `🚨${watcher.coin} - R$ ${currentPrice.toFixed(2)} 🚨🚨\n ⚠️ ALERTA DE PREÇO! ⚠️\nA moeda ${watcher.coin} atingiu R$ ${currentPrice.toFixed(2)}, que está ${currentPrice < watcher.price ? 'abaixo do' : 'igual ao'} seu valor alvo de R$ ${watcher.price.toFixed(2)}.\n\nVocê não receberá mais alertas por 20 minutos.`;
@@ -225,7 +218,7 @@ export const monitorPrices = () => {
 connectToWhatsApp();
 connectToMongoDB();
 sendMessageAtTime();
-monitorPrices(); // Start price monitoring
+monitorPrices();
 
 
 export {
