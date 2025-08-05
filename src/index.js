@@ -118,6 +118,15 @@ let greeting = 1
 
 const alertCooldowns = new Map();
 
+// Function to check if alerts should be active (7 AM to 8 PM)
+const isAlertTimeActive = () => {
+  const now = new Date();
+  const currentHour = now.getHours();
+  
+  // Alerts active from 7 AM (7) to 8 PM (20)
+  return currentHour >= 7 && currentHour < 20;
+};
+
 export const sendMessageAtTime = () => {
   console.log('Cronjob agendado para 08h, 12h e 18h ⏱️');
 
@@ -150,10 +159,16 @@ export const sendMessageAtTime = () => {
 };
 
 export const monitorPrices = () => {
-  console.log('🔄 Price monitoring started - checking every 5 minutes');
+  console.log('🔄 Price monitoring started - checking every 5 minutes (active 7 AM - 8 PM)');
 
   cron.schedule('*/5 * * * *', async () => {
     try {
+      // Check if alerts should be active based on time
+      if (!isAlertTimeActive()) {
+        console.log('🌙 Price alerts are currently inactive (outside 7 AM - 8 PM hours)');
+        return;
+      }
+
       const watchers = await UserWatcher.find({}).lean();
       if (!watchers.length) return;
 
@@ -192,7 +207,6 @@ export const monitorPrices = () => {
             const alertMessage = `🚨${watcher.coin} - R$ ${currentPrice.toFixed(2)} 🚨🚨\n ⚠️ ALERTA DE PREÇO! ⚠️\nA moeda ${watcher.coin} atingiu R$ ${currentPrice.toFixed(2)}, que está ${currentPrice < watcher.price ? 'abaixo do' : 'igual ao'} seu valor alvo de R$ ${watcher.price.toFixed(2)}.\n\nVocê não receberá mais alertas por 20 minutos.`;
             
             try {
-
               await handleSendMessage(watcher, alertMessage, true);
               alertCooldowns.set(watcher.user, now);
               console.log(`✅ Alert sent to ${watcher.user} for ${watcher.coin} at R$ ${currentPrice.toFixed(2)}`);
