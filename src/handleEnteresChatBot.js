@@ -4,9 +4,14 @@ import { getCoinPrice } from "./getCoinPrice.js"
 
 export const steps = [
   {id: 1,
-  message: "Ola, sou bot das moedas, como posso te ajudar? Para saber o preço de uma moeda em real, digite o nome da moeda, por exemplo: USD, BRL, EUR, etc.\n Para entrar na lista de alertas de uma moeda digite /entrar\n Para visualizar suas listas digite /listas",
-  actions: ["/entrar", "/listas"],
-  next: (m) => m == '/entrar' ? 3 : 9
+  message: "Ola, sou bot das moedas, como posso te ajudar? Para saber o preço de uma moeda em real, digite o nome da moeda, por exemplo: USD, BRL, EUR, etc.\n Para entrar na lista de alertas de uma moeda digite /entrar\n Para visualizar suas listas digite /listas\n Para editar suas listas digite /editar",
+  actions: ["/entrar", "/listas", "/editar"],
+  next: (m) => {
+    if (m === '/entrar') return 3;
+    if (m === '/listas') return 8;
+    if (m === '/editar') return 10;
+    return 1;
+  }
   },
   {id: 3,
     message: "*Primeiro passo*\nDigite o nome da moeda, por exemplo: USD, BRL, EUR, etc.",
@@ -27,13 +32,33 @@ export const steps = [
   },
   {
     id: 8,
-    message: "Para saber o preço de uma moeda em real, digite o nome da moeda, por exemplo: USD, BRL, EUR, etc.\n Para entrar na lista de moedas digite /entrar\n Para visualizar suas listas digite /listas",
-    actions: ["/entrar", "/listas"],
-    next: (m) => m == '/entrar' ? 3 : 9
+    message: "Para saber o preço de uma moeda em real, digite o nome da moeda, por exemplo: USD, BRL, EUR, etc.\n Para entrar na lista de moedas digite /entrar\n Para visualizar suas listas digite /listas\n Para editar suas listas digite /editar",
+    actions: ["/entrar", "/listas", "/editar"],
+    next: (m) => {
+      if (m === '/entrar') return 3;
+      if (m === '/listas') return 8;
+      if (m === '/editar') return 10;
+      return 8;
+    }
   },
   {
     id: 9,
     message: "Listas:",
+    next: 8
+  },
+  {
+    id: 10,
+    message: "Digite o número da lista que deseja editar:",
+    next: 11
+  },
+  {
+    id: 11,
+    message: "Digite o novo valor para {coin}:",
+    next: 12
+  },
+  {
+    id: 12,
+    message: "Valor atualizado! O novo valor para {coin} é R$ {value}.",
     next: 8
   }
 ]
@@ -50,9 +75,25 @@ export const handleChatBot = async (message, user) => {
       user.step = getStepById(user.step.next(message.body))
       return {text: user.step.message}
     } else if (message.body === "/listas") {
-      user.step = getStepById(user.step.next)
+      user.step = getStepById(user.step.next(message.body))
       const listOfWatchers = await getListOfWatchers(user)
-      return {text: "Suas listas"+ "\n" + listOfWatchers.map(watcher => watcher.coin + " - " + watcher.price).join("\n")}
+      if (listOfWatchers.length === 0) {
+        return {text: "Você não tem nenhuma lista de alertas criada ainda."}
+      }
+      const listText = listOfWatchers.map((watcher, index) => 
+        `${index + 1}. ${watcher.coin} - R$ ${watcher.price}`
+      ).join("\n");
+      return {text: "Suas listas:\n" + listText}
+    } else if (message.body === "/editar") {
+      const listOfWatchers = await getListOfWatchers(user)
+      if (listOfWatchers.length === 0) {
+        return {text: "Você não tem nenhuma lista de alertas para editar."}
+      }
+      user.step = getStepById(user.step.next(message.body))
+      const listText = listOfWatchers.map((watcher, index) => 
+        `${index + 1}. ${watcher.coin} - R$ ${watcher.price}`
+      ).join("\n");
+      return {text: "Digite o número da lista que deseja editar:\n" + listText}
     }
     const response = await getCoinPrice(message.body)
     return {text: response.text}
@@ -63,6 +104,15 @@ export const handleChatBot = async (message, user) => {
     if (response.error) {
       return {text: "Moeda invalida"}
     }
+    
+    // Check if user already has a watcher for this coin
+    const existingWatcher = await UserWatcher.findOne({userId: user.id, coin: coin.toUpperCase()})
+    if (existingWatcher) {
+      await handleEnterCoinWatcher(coin, undefined, user)
+      user.step = getStepById(user.step.next)
+      return {text: `⚠️ Você já tem um alerta para ${coin.toUpperCase()}. O valor atual será substituído pelo novo valor.\n\n${user.step.message}`}
+    }
+    
     await handleEnterCoinWatcher(coin, undefined, user)
     user.step = getStepById(user.step.next)
     return {text: user.step.message}
@@ -79,11 +129,14 @@ export const handleChatBot = async (message, user) => {
   if (user.step.id === 5) {
     const confirm = message.body
     if (confirm === "1") {
-      handleEnterCoinWatcher(undefined, undefined, user)
-      user.step = getStepById(user.step.next(1))
       const getHelper = userWatcherHelper.findIndex(watcher => watcher.userId === user.id)
+      const helper = userWatcherHelper[getHelper]
+      
+      await handleEnterCoinWatcher(undefined, undefined, user)
+      user.step = getStepById(user.step.next(1))
+      
       console.log(user.step)
-      const responseMessage = user.step.message.replace("{coin}", userWatcherHelper[getHelper].coin).replace("{value}", userWatcherHelper[getHelper].price)
+      const responseMessage = user.step.message.replace("{coin}", helper.coin).replace("{value}", helper.price)
       userWatcherHelper.splice(getHelper, 1)
       user.step = getStepById(user.step.next)
       return {text: responseMessage}
@@ -95,21 +148,68 @@ export const handleChatBot = async (message, user) => {
       return {text: "Ação cancelada"}
     }
   }
+  if (user.step.id === 10) {
+    const listNumber = parseInt(message.body)
+    const listOfWatchers = await getListOfWatchers(user)
+    
+    if (isNaN(listNumber) || listNumber < 1 || listNumber > listOfWatchers.length) {
+      return {text: "Número inválido. Digite um número válido da lista."}
+    }
+    
+    const selectedWatcher = listOfWatchers[listNumber - 1]
+    user.step = getStepById(user.step.next)
+    user.step.selectedWatcher = selectedWatcher
+    return {text: user.step.message.replace("{coin}", selectedWatcher.coin)}
+  }
+  if (user.step.id === 11) {
+    let newPrice = message.body
+    newPrice = newPrice.replace("R$", "").replace(",", ".")
+    
+    if (isNaN(newPrice) || parseFloat(newPrice) <= 0) {
+      return {text: "Valor inválido. Digite um valor válido, por exemplo: R$ 5,00"}
+    }
+    
+    const selectedWatcher = user.step.selectedWatcher
+    await UserWatcher.findByIdAndUpdate(selectedWatcher._id, {price: parseFloat(newPrice)})
+    
+    user.step = getStepById(user.step.next)
+    const responseMessage = user.step.message.replace("{coin}", selectedWatcher.coin).replace("{value}", newPrice)
+    user.step = getStepById(user.step.next)
+    return {text: responseMessage}
+  }
   return {text: "Não foi possível encontrar o passo"};
 }
 
-
-
 const handleEnterCoinWatcher = async (coin, price, user) => {
   const getHelper = userWatcherHelper.findIndex(watcher => watcher.userId === user.id)
+  
   if (!coin && !price) {
-    await UserWatcher.create({
-      userId: user.id,
-      coin: userWatcherHelper[getHelper].coin,
-      price: userWatcherHelper[getHelper].price
-    })
+    if (getHelper === -1) {
+      console.error('No helper found for user:', user.id);
+      return;
+    }
+    
+    const helper = userWatcherHelper[getHelper];
+    if (!helper) {
+      console.error('Helper is undefined for user:', user.id);
+      return;
+    }
+    
+    const existingWatcher = await UserWatcher.findOne({userId: user.id, coin: helper.coin})
+    if (existingWatcher) {
+      await UserWatcher.findByIdAndUpdate(existingWatcher._id, {
+        price: helper.price
+      })
+    } else {
+      await UserWatcher.create({
+        userId: user.id,
+        coin: helper.coin,
+        price: helper.price
+      })
+    }
     return
   }
+  
   if (getHelper !== -1) {
     userWatcherHelper[getHelper].price = price
   } else {
@@ -117,7 +217,6 @@ const handleEnterCoinWatcher = async (coin, price, user) => {
       userId: user.id,
       coin: coin.toUpperCase(),
     }
-
     userWatcherHelper.push(newUserWatcher)
     return
   }

@@ -12,7 +12,7 @@
   "description": "",
   "dependencies": {
     "@adiwajshing/baileys": "^5.0.0",
-    "@whiskeysockets/baileys": "^6.17.16",
+    "@whiskeysockets/baileys": "^6.6.0",
     "axios": "^1.10.0",
     "dotenv": "^17.2.0",
     "mongodb": "^6.17.0",
