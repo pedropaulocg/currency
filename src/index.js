@@ -118,12 +118,10 @@ let greeting = 1
 
 const alertCooldowns = new Map();
 
-// Function to check if alerts should be active (7 AM to 8 PM)
 const isAlertTimeActive = () => {
   const now = new Date();
   const currentHour = now.getHours();
   
-  // Alerts active from 7 AM (7) to 8 PM (20)
   return currentHour >= 7 && currentHour < 20;
 };
 
@@ -201,10 +199,10 @@ export const monitorPrices = () => {
         if (currentPrice <= watcher.price) {
           const now = Date.now();
           const lastAlert = alertCooldowns.get(watcher.user) || 0;
-          const cooldownMs = 20 * 60 * 1000;
+          const cooldownMs =60 * 60 * 1000;
 
           if (now - lastAlert >= cooldownMs) {
-            const alertMessage = `🚨${watcher.coin} - R$ ${currentPrice.toFixed(2)} 🚨🚨\n ⚠️ ALERTA DE PREÇO! ⚠️\nA moeda ${watcher.coin} atingiu R$ ${currentPrice.toFixed(2)}, que está ${currentPrice < watcher.price ? 'abaixo do' : 'igual ao'} seu valor alvo de R$ ${watcher.price.toFixed(2)}.\n\nVocê não receberá mais alertas por 20 minutos.`;
+            const alertMessage = `🚨${watcher.coin} - R$ ${currentPrice.toFixed(2)} 🚨🚨\n ⚠️ ALERTA DE PREÇO! ⚠️\nA moeda ${watcher.coin} atingiu R$ ${currentPrice.toFixed(2)}, que está ${currentPrice < watcher.price ? 'abaixo do' : 'igual ao'} seu valor alvo de R$ ${watcher.price.toFixed(2)}.\n\nVocê não receberá mais alertas por 60 minutos.`;
             
             try {
               await handleSendMessage(watcher, alertMessage, true);
